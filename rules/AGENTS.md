@@ -6,6 +6,7 @@ Diese Regeln kommen in den Prompt jedes Bau-Versuchs. Jede Regel verweist auf da
 - Passwörter, TOTP-Codes und TOTP-Secrets werden nie gespeichert, geloggt, als CLI-Flag angenommen oder an ein LLM gegeben. Eingabe nur über verdeckten Prompt.
 - Sessions liegen im OS-Schlüsselbund, sonst in einer Datei mit Rechten 0600, nie im Repo oder Arbeitsverzeichnis, nie in Ausgaben oder MCP-Antworten.
 - Nur die Cookies der Ziel-App speichern (Allowlist), nie Cookies des Identity-Providers. → `learnings/2026-10-08-nur-noetige-cookies-speichern.md`
+- Keine persönlichen Daten erfinden (Mail, Telefon, Adresse, Matrikelnummer). Autor in `pyproject.toml`/`package.json` nur als Name plus `186922365+smlfg@users.noreply.github.com`, sonst Feld weglassen. → `learnings/2026-10-08-keine-erfundenen-personendaten.md`
 
 ## Auth
 - Login gilt erst als erfolgreich, wenn eine nur für eingeloggte Nutzer sichtbare Seite geladen wurde, nie schon, wenn ein Cookie existiert. → `learnings/2026-10-08-login-erfolg-braucht-beweis.md`
