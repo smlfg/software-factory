@@ -22,3 +22,6 @@ Diese Regeln kommen in den Prompt jedes Bau-Versuchs. Jede Regel verweist auf da
 
 ## Tests
 - Das Tool darf in Tests nie echte Server erreichen. Konfigurationspfade aus Umgebungsvariablen respektieren. → `learnings/2026-10-08-netzwerk-sandbox-in-tests.md`
+
+## Scraping / HTML-Parsing
+- Listen-Parser über stabile Klassen/Selektoren (z. B. `h2.truncate_title`), nie „erstes <span>/<div>“. Detail-URLs oft mit numerischer ID ausreichend, wenn der Server redirected. Mehrere Feld-Schemata auf Detailseiten explizit abdecken. → `learnings/2026-10-13-wg-gesucht-cli-LEARNINGS.md`
