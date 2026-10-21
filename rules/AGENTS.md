@@ -33,3 +33,5 @@ Diese Regeln kommen in den Prompt jedes Bau-Versuchs. Jede Regel verweist auf da
 ## Prozess
 - Nach jedem Bau eine QA-Runde als eigene Iteration (find→file, nie fixen); auch bei grüner Suite fanden beide Runden echte Betriebsbugs (3+5). → `learnings/2026-10-13-cli-fabrik-LEARNINGS.md`
 - Pro CLI ein Repo, kleinteilige Commits, Issues als Loop-Backlog (Dedupe inkl. geschlossener). → `learnings/2026-10-13-cli-fabrik-LEARNINGS.md`
+
+- Jeder Filter (auch `--date`) wird clientseitig gegen jeden Treffer erzwungen; die API kann mehr liefern als angefragt (z.B. Nachtfahrten des Folgetags). QA prüft Filter über die komplette Trefferliste. (2026-10-21, flixbus-cli)
