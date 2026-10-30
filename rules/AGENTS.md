@@ -23,6 +23,15 @@ Diese Regeln kommen in den Prompt jedes Bau-Versuchs. Jede Regel verweist auf da
 - Aufräum-Befehle (logout, delete, …) sind idempotent.
 - Mit `--json` steht auf stdout genau ein JSON-Objekt, Prompts gehen auf stderr.
 
+## Bedienbarkeit für Menschen (Pflicht)
+- Jede CLI muss für Menschen bedienbar sein: `login`-Kommando statt nur Env, Namen statt IDs, interaktive Bestätigung im TTY, `--confirm` nur für Agenten, README-Schnellstart. → `learnings/2026-10-30-cli-fuer-menschen-bedienbar.md`
+  - `login` fragt im Terminal interaktiv (Passwort per getpass), speichert in Schlüsselbund oder Config-Datei 0600; dazu `logout` und `whoami`/`status` ohne Passwort-Ausgabe. Env-Variablen überschreiben die Config und bleiben für Agenten.
+  - Suchen und Aktionen nehmen Namen/Freitext positional (`tool book volleyball`, `tool search fahrrad`); bei mehreren Treffern nummerierte Auswahl im TTY, ohne TTY Liste + Exit Usage.
+  - Schreibende Aktionen fragen im TTY „… verbindlich? [j/N]“ (Default Nein); `--confirm`/`--yes` nur für nicht-interaktive Agenten; ohne TTY und ohne Flag Trockenlauf bzw. Abbruch vor jedem Request.
+  - Ausgabe im Terminal lesbar, JSON nur mit `--json` oder wenn stdout kein Terminal ist (Pipe/Agent).
+  - Fehler nennen den nächsten Schritt („Login fehlt – `tool login` ausführen“), nie Tracebacks bei EOF/Strg+C/fehlender optionaler Abhängigkeit.
+  - README beginnt mit „Schnellstart“: `pipx install git+https://github.com/smlfg/<repo>` (landet im PATH), Login, ein typischer Befehl mit Namen.
+
 ## Tests
 - Das Tool darf in Tests nie echte Server erreichen. Konfigurationspfade aus Umgebungsvariablen respektieren. → `learnings/2026-10-08-netzwerk-sandbox-in-tests.md`
 
@@ -35,3 +44,4 @@ Diese Regeln kommen in den Prompt jedes Bau-Versuchs. Jede Regel verweist auf da
 - Pro CLI ein Repo, kleinteilige Commits, Issues als Loop-Backlog (Dedupe inkl. geschlossener). → `learnings/2026-10-13-cli-fabrik-LEARNINGS.md`
 
 - Jeder Filter (auch `--date`) wird clientseitig gegen jeden Treffer erzwungen; die API kann mehr liefern als angefragt (z.B. Nachtfahrten des Folgetags). QA prüft Filter über die komplette Trefferliste. (2026-10-21, flixbus-cli)
+- Pflicht-QA enthält immer den Prüfpunkt „Bedienbarkeit für Menschen“: frisch per `pipx install git+…` installieren und Befehl im PATH aufrufen; Haupt-Use-Case ohne README nur mit `--help` im Terminal (pseudo-TTY, z. B. `script -qc`) durchspielen: `login` interaktiv, Suche per Name, Bestätigungsfrage mit Antwort „N“ sendet nichts; Fehler ohne Login nennen den nächsten Schritt. FAIL, wenn eine Kernaktion nur über Env/IDs/`--confirm` erreichbar ist. (2026-10-30, hochschulsport-cli)
