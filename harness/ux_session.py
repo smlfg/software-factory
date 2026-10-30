@@ -338,10 +338,7 @@ def _run_session(
                 continue
             if skip_expects:
                 continue
-            if step.kind == "expect" and "[j/N]" in step.text:
-                confirm_time = server.mark("confirm")
-                if answer_override is not None:
-                    override_pending = True
+            is_confirm = "[j/N]" in step.text
             try:
                 found = current.expect(
                     step.text, timeout=DEFAULT_TIMEOUT, regex=(step.kind == "regex")
@@ -354,6 +351,10 @@ def _run_session(
                 fails.append(f"erwartete {label} nicht gefunden: {step.text!r}")
                 abort_current()
                 break
+            if is_confirm:
+                confirm_time = server.mark("confirm")
+                if answer_override is not None:
+                    override_pending = True
             continue
         if step.kind == "exit":
             try:
