@@ -128,18 +128,33 @@ def _subcommands(help_text: str) -> list[str]:
             if re.fullmatch(r"[A-Za-z][\w-]*", part) and part not in names:
                 names.append(part)
     positional = False
+    metavar_header = False
     for line in help_text.splitlines():
         if re.match(r"^\s*(positional arguments|Positional Arguments)\s*:\s*$", line):
             positional = True
+            metavar_header = False
             continue
         if not positional:
             continue
         match = re.match(r"^\s*\{([^{}]+)\}\s*$", line)
         if match:
+            metavar_header = False
             for part in match.group(1).split(","):
                 part = part.strip()
                 if re.fullmatch(r"[A-Za-z][\w-]*", part) and part not in names:
                     names.append(part)
+        elif re.match(r"^\s{2,}[A-Z][A-Z0-9_-]*\s*$", line):
+            # argparse mit eigenem metavar ("SUBCOMMAND"/"ACTION"), darunter
+            # eingerückte Unterkommandos mit Beschreibung (wg-gesucht-cli).
+            metavar_header = True
+        elif metavar_header:
+            match = re.match(r"^\s{4,}([A-Za-z][\w-]*)\s{2,}\S", line)
+            if match:
+                if match.group(1) not in names:
+                    names.append(match.group(1))
+            elif re.match(r"^\S", line):
+                positional = False
+                metavar_header = False
         elif re.match(r"^\S", line):
             positional = False
     section = False
