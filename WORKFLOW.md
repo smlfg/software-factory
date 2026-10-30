@@ -1,5 +1,7 @@
 # Workflow: Website rein, CLI raus
 
+Bausteine: Startgerüst [smlfg/cli-mcp-template](https://github.com/smlfg/cli-mcp-template) (enthält `docs/UX.md`-Vorlage und `tests/harness/` mit UX-Gate), Regeln [rules/AGENTS.md](rules/AGENTS.md), Gate-Doku [tests/README.md](tests/README.md), UX-Vorlage [template/UX.md](template/UX.md).
+
 Ein durchgehender Ablauf von oben nach unten. Jeder Schritt hat eine Eingabe, eine Ausgabe und ein Gate. Kein Schritt wird übersprungen; ein rotes Gate schickt zurück, nicht weiter.
 
 ```
@@ -91,7 +93,7 @@ Alle Formular- und Request-Schritte der schreibenden Aktion werden live erkundet
 |---|---|
 | Eingabe | fertiger Build, `docs/UX.md`, Fixtures |
 | Ausgabe (Dateien) | Markdown-Bericht von `ux_check.py` und `ux_session.py` |
-| Gate | `python tests/harness/ux_check.py <repo>`: UX01-UX08 ohne FAIL. `python tests/harness/ux_session.py <repo>`: frisches venv, Befehl im PATH, Login-Prompts, Auswahl per Name, `N` bricht ohne Request ab, `j` gegen Fake-Server sendet ALLE Formularschritte. Kein PASS -> zurück zu Schritt 4. |
+| Gate | `python tests/harness/ux_check.py <repo>`: UX00-UX08 ohne FAIL (UX00 = Tool über `base_url_env` gegen den Fake-Server testbar). `python tests/harness/ux_session.py <repo>`: frisches venv, Befehl im PATH, Login-Prompts, Auswahl per Name, `N` bricht ohne Request ab, `j` gegen Fake-Server sendet ALLE Formularschritte. Kein PASS -> zurück zu Schritt 4. |
 | Worker | opencode (Ausführung), Grok Bot (nur Bericht lesen) |
 
 ## Schritt 6: Pflicht-QA
@@ -110,7 +112,7 @@ Alle Formular- und Request-Schritte der schreibenden Aktion werden live erkundet
 | Eingabe | Build und QA aus Schritt 5 und 6 |
 | Ausgabe (Dateien) | öffentliches Repo mit About/Topics, Meldung an Samuel, `LOG.md`, Zeile in `runs/runs.csv` |
 | Gate | Repo public, About und Topics gesetzt; Meldung enthält was gebaut wurde, Schnellstart und offene Punkte; `LOG.md` und `runs.csv` aktualisiert |
-| Worker | Samuel (Push/Freigabe), opencode (Text und Eintrag) |
+| Worker | tägliche Routine (Grok Bot orchestriert: Push, Meldung), opencode (Texte, LOG-/runs-Einträge) |
 
 ## Warum
 
