@@ -24,6 +24,7 @@ Diese Regeln kommen in den Prompt jedes Bau-Versuchs. Jede Regel verweist auf da
 - Mit `--json` steht auf stdout genau ein JSON-Objekt, Prompts gehen auf stderr.
 
 ## Bedienbarkeit für Menschen (Pflicht)
+- Spec zuerst: docs/UX.md vor jeder Codezeile; der Build gilt erst als fertig, wenn `ux_check.py` und `ux_session.py` grün sind. Eine schreibende Aktion ist erst fertig, wenn ALLE Formularschritte bis zur endgültigen Bestätigung gesendet werden (gegen Fake-Server bewiesen).
 - Jede CLI muss für Menschen bedienbar sein: `login`-Kommando statt nur Env, Namen statt IDs, interaktive Bestätigung im TTY, `--confirm` nur für Agenten, README-Schnellstart. → `learnings/2026-10-30-cli-fuer-menschen-bedienbar.md`
   - `login` fragt im Terminal interaktiv (Passwort per getpass), speichert in Schlüsselbund oder Config-Datei 0600; dazu `logout` und `whoami`/`status` ohne Passwort-Ausgabe. Env-Variablen überschreiben die Config und bleiben für Agenten.
   - Suchen und Aktionen nehmen Namen/Freitext positional (`tool book volleyball`, `tool search fahrrad`); bei mehreren Treffern nummerierte Auswahl im TTY, ohne TTY Liste + Exit Usage.
