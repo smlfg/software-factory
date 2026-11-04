@@ -1,6 +1,6 @@
 # software-factory
 
-Die Fabrik hinter den smlfg-CLIs und -MCP-Servern: ein Werkzeug pro Tag für deutsche Web-Dienste (Mensa, StarPlan, Stud.IP, Bibliothek …), gebaut von Gratis-Modellen über [opencode](https://opencode.ai), abgesichert durch ein maschinelles Bedienbarkeits-Gate.
+Die Fabrik hinter den smlfg-CLIs und -MCP-Servern: ein Werkzeug pro Tag für deutsche Web-Dienste (Mensa, StarPlan, Stud.IP, Bibliothek …), gebaut über [opencode](https://opencode.ai): zuerst das bezahlte opencode Go (`opencode-go/deepseek-v4.1-flash`), Gratis-Modelle als Fallback, abgesichert durch ein maschinelles Bedienbarkeits-Gate.
 
 Iteratives Projekt. **Iteration 1** (dieser Stand): Workflow, UX-Gate und Health-Check an einem Ort. Kettensteuerung (`factory.sh`, Lanes) und Vorlage folgen erst, wenn Iteration 1 im Betrieb hält. Vorher wird geprüft, was es schon gibt: [PRIOR-ART.md](PRIOR-ART.md).
 
@@ -19,6 +19,12 @@ Iteratives Projekt. **Iteration 1** (dieser Stand): Workflow, UX-Gate und Health
 1. `pipeline/health.sh` → gibt das erste antwortende Modell aus, sonst Exit ≠ 0 und Grund in `pipeline/state/STATUS.md`.
 2. Worker-Stufe mit diesem Modell (opencode), Ergebnis per Marker-Datei abgehakt.
 3. Gate: `python3 harness/ux_check.py <repo>` und `python3 harness/ux_session.py <repo>`; nur grün wird gepusht.
+
+## Modelle
+
+Reihenfolge (Default von `FACTORY_MODELS`): `opencode-go/deepseek-v4.1-flash` → `opencode/deepseek-v4.1-flash-free` → `opencode/glm-5.3-flash-free` → `opencode/mimo-v2.6-flash-free`. Jede Probe hat 45 s.
+
+Der Go-Key liegt nur in `/home/box/.secrets/opencode-go.env` (0600, `OPENCODE_GO_API_KEY=…`, Pfad über `OPENCODE_GO_ENV`). Er wird nur für `opencode-go/*`-Aufrufe als `OPENCODE_API_KEY` gesetzt, nie an Gratis-Modelle gegeben und nie ausgegeben. Meldet Go ein Limit (429, Usage-Limit), fällt die Kette auf Gratis zurück und schreibt den Grund in den Status.
 
 ## Start
 

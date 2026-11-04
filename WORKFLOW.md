@@ -97,7 +97,7 @@ Alle Formular- und Request-Schritte der schreibenden Aktion werden live erkundet
 | Eingabe | `ANFORDERUNGEN.md`, `INTERFACE.md`, `docs/UX.md`, `rules/AGENTS.md`, `tests/` |
 | Ausgabe (Dateien) | Quellcode, `tests/acceptance/`-Läufe, je Schritt ein Commit |
 | Gate | Nach jedem Schritt `pytest` grün und ein eigener Commit; keine offenen Tracebacks |
-| Worker | opencode `deepseek-v4.1-flash-free`, Fallback `glm-5.3-flash-free`, gestartet über `/home/box/scripts/hermes-run.sh` mit Shim |
+| Worker | opencode Go `opencode-go/deepseek-v4.1-flash` (bezahlt), bei Limit/429 Fallback auf `deepseek-v4.1-flash-free` → `glm-5.3-flash-free` → `mimo-v2.6-flash-free`; gestartet über `/home/box/scripts/hermes-run.sh` mit Shim, der den Go-Key nur für `opencode-go/*` setzt |
 
 ## Schritt 5: UX-Gate
 
