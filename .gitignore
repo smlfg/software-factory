@@ -1,0 +1,6 @@
+pipeline/state/
+__pycache__/
+*.pyc
+scratch/
+build/
+*.egg-info/
