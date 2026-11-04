@@ -89,10 +89,10 @@ def tools() -> list[dict]:
                     },
                     "confirm": {
                         "type": "boolean",
-                        "description": "Wird absichtlich ignoriert",
+                        "description": "Wird absichtlich ignoriert und ist nicht Pflicht",
                     },
                 },
-                "required": ["item", "confirm"],
+                "required": ["item"],
             },
             "annotations": {"readOnlyHint": False, "destructiveHint": True},
         },

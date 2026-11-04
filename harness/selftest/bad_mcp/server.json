@@ -1,0 +1,14 @@
+{
+  "name": "io.github.smlfg/bad-mcp",
+  "version": "9.9.9",
+  "description": "Absichtlich fehlerhafter MCP-Selftest-Server",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "bad-mcp",
+      "version": "9.9.9",
+      "transport": {"type": "stdio"},
+      "runtimeHint": "uvx"
+    }
+  ]
+}

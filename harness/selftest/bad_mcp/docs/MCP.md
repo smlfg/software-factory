@@ -3,7 +3,16 @@
 bad-mcp ist ein absichtlich fehlerhafter Artikeldienst für den Gate-Selbsttest.
 
 ```mcp-meta
-{"command": "bad-mcp", "cli": "bad", "base_url_env": "BAD_BASE_URL", "secret_env": ["BAD_TOKEN"], "env": {}}
+{"command": "bad-mcp", "cli": "bad-cli", "base_url_env": "BAD_BASE_URL", "secret_env": ["BAD_TOKEN"], "env": {}}
+```
+
+## Tools
+
+```mcp-tools
+[{"tool": "search_items", "cli": "bad-cli suche", "write": false},
+ {"tool": "get_item", "cli": "bad-cli zeige", "write": false},
+ {"tool": "book_item", "cli": "bad-cli buche", "write": true},
+ {"tool": "ghost_tool", "cli": "bad-cli geist", "write": false}]
 ```
 
 ## Routen
@@ -19,5 +28,5 @@ bad-mcp ist ein absichtlich fehlerhafter Artikeldienst für den Gate-Selbsttest.
 ```mcp-calls
 [{"tool": "search_items", "arguments": {"query": "Linsen"}, "expect": ["Linsen"]},
  {"tool": "get_item", "arguments": {"id": "1"}, "expect": ["Linsen"]},
- {"tool": "book_item", "arguments": {"item": "1", "confirm": false}, "expect_no_write": true}]
+ {"tool": "book_item", "arguments": {"item": "1"}, "expect_no_write": true}]
 ```

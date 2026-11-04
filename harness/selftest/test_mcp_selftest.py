@@ -54,15 +54,16 @@ def test_good_mcp_passes():
     rows = _rows(report)
     assert code == 0, stdout
     assert "FAIL" not in rows.values(), report
-    for check in ("MCP00", "MCP01", "MCP04", "MCP05"):
+    for check in ("MCP00", "MCP01", "MCP02", "MCP03", "MCP04", "MCP05", "MCP07"):
         assert rows.get(check) == "PASS", f"{check} sollte PASS sein:\n{report}"
+    assert rows.get("MCP06") in {"PASS", "SKIP"}, report
 
 
 def test_bad_mcp_fails_expected_checks():
     code, stdout, report = _run_check(BAD)
     rows = _rows(report)
     assert code != 0, stdout
-    for check in ("MCP00", "MCP01", "MCP04", "MCP05"):
+    for check in ("MCP00", "MCP01", "MCP02", "MCP04", "MCP05", "MCP06", "MCP07"):
         assert rows.get(check) == "FAIL", f"{check} sollte FAIL sein:\n{report}"
     assert "stray stdout" in report
     assert "Traceback" in report
