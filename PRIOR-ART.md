@@ -21,6 +21,9 @@ Stand 04.11.2026. Recherche durch opencode (deepseek-v4.1-flash-free), weil Gemi
 | MCP Inspector | https://github.com/modelcontextprotocol/inspector | B MCP | übernehmen – Der CLI-Modus mit JSON-Ausgabe und Exit-Codes ersetzt unseren eigenen MCP-Smoke-Test-Client. |
 | Smithery CLI | https://github.com/smithery-ai/cli | B MCP | nicht – Registry-/Client-Werkzeug, kein Generator; für interne MCP-Server ohne Veröffentlichungsbedarf nicht nötig. |
 | Glama | https://glama.ai/ | B MCP | nicht – Registry, Hosting und Web-Inspector sind Discovery-Werkzeuge, kein Build-Baustein für unsere Server. |
+| tdqs | https://tdqs.dev/cli | B MCP | übernehmen – Deterministischer `tdqs lint --file tools.json --fail-on error --format json` ohne Modell/Key; die Referenzimplementierung ist identisch zur TDQS-Metrik, mit der Glama jedes Tool bewertet. |
+| mcp-schema-lint | https://github.com/bengodgart/mcp-schema-lint | B MCP | nicht – Offline-fähiger Schema-Linter mit guten Regeln, aber eine eigene Metrik statt Glamas TDQS; für unser Gate nicht deckungsgleich. |
+| scoremcp | https://scoremcp.dev/ | B MCP | nicht – Liefert 0–100 und Note ohne Modell, bewertet aber nach eigener Metrik; Glama-Noten lassen sich damit nicht reproduzieren. |
 | mcp-publisher | https://modelcontextprotocol.io/registry/quickstart | B MCP | nicht – Nur für das Veröffentlichen in der öffentlichen MCP-Registry relevant, nicht für interne Server. |
 | Aider Scripting | https://aider.chat/docs/scripting.html | C Agent | nicht – Scripting ist brauchbar, aber opencode ist bereits unser Worker; ein zweiter Agenten-Stack bringt keinen Mehrwert. |
 | OpenHands | https://docs.openhands.dev/openhands/usage/cli/quick-start | C Agent | nicht – Die CLI wird laut Doku nicht mehr aktiv gepflegt und der Agent-Canvas-/SDK-Stack ist für unsere Tagespipelines zu schwer. |
