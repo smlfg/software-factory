@@ -44,17 +44,42 @@ In ein neues Repo kopiert man `tests/harness/` komplett (inklusive
 ## MCP-Gate
 
 `mcp_check.py` prüft MCP-Server über stdio gegen `docs/MCP.md` (Blöcke
-`mcp-meta`, `mcp-routes`, `mcp-calls`). Der Client `mcp_client.py` spricht
-JSON-RPC 2.0 ohne MCP-SDK; Routen laufen über denselben `fake_server.py`
-wie das UX-Gate.
+`mcp-meta`, `mcp-tools`, `mcp-routes`, `mcp-calls`). `MCP01` (tools/list) und
+`MCP03` (Aufrufe) laufen über den offiziellen MCP Inspector im CLI-Modus
+(`npx -y @modelcontextprotocol/inspector@latest --cli … --method …`), weil er
+ein geprüfter Referenz-Client mit JSON-Ausgabe und Exit-Codes ist. Fehlen `npx`
+oder Node >= 22.19, fällt das Gate auf `mcp_client.py` zurück und vermerkt
+„Inspector fehlt, Fallback“ im Detail (kein FAIL). `MCP00` (stray stdout) und
+`MCP04` (unbekanntes Tool, falsche Typen, unerreichbare URL) bleiben beim rohen
+JSON-RPC-Client, weil der Inspector diese Protokolldetails nicht roh liefert.
+Routen laufen über denselben `fake_server.py` wie das UX-Gate.
 
 ```bash
 python harness/mcp_check.py <repo_dir> [--venv DIR] [--report FILE] [--cmd "befehl args"]
 python harness/mcp_check.py harness/selftest/good_mcp --venv scratch/tmp/mcp-venv
 ```
 
-Teil 1 prüft `MCP00` (Start/initialize, kein stray stdout), `MCP01`
-(tools/list, Namen, Beschreibungen, Schemata, `readOnlyHint`), `MCP04`
-(Fehlerpfade für unbekannte Tools, falsche Typen und unerreichbare URL)
-sowie `MCP05` (keine Secrets in stdout/stderr/Antworten). Exit-Codes wie
-beim UX-Gate: `0` = kein FAIL, `1` = FAIL, `2` = Aufruffehler.
+- `MCP00`: Start/initialize, `serverInfo`, `capabilities.tools`, kein stray stdout.
+- `MCP01`: `tools/list` über den Inspector: Namen, Beschreibungen, Schemata,
+  `readOnlyHint`.
+- `MCP02`: Schreibende Tools (`readOnlyHint=false` oder `destructiveHint=true`)
+  brauchen eine boolean-Property `confirm` in `required`. Jeder Aufruf mit
+  `expect_no_write` wird mit `confirm=false` wiederholt und darf am Fake-Server
+  kein `POST`/`PUT`/`PATCH`/`DELETE` auslösen (`server.mark()` vor dem Aufruf).
+- `MCP03`: Alle `mcp-calls` mit `expect` laufen über den Inspector: kein
+  `isError`, alle erwarteten Texte enthalten, mindestens ein Request am
+  Fake-Server, kein fremder Host im Sandbox-Protokoll (`sitecustomize.py`).
+- `MCP04`: Fehlerpfade für unbekannte Tools, falsche Typen und unerreichbare URL.
+- `MCP05`: Keine Secrets in stdout/stderr/Antworten.
+- `MCP06`: `server.json` existiert und ist gültig, `name` beginnt mit
+  `io.github.smlfg/`, Version und Paket-Identifier passen zu `pyproject.toml`,
+  README enthält den `mcp-name`-Kommentar und einen `mcpServers`-Block. Ist
+  `mcp-publisher` installiert, muss `mcp-publisher validate server.json` mit
+  Exit 0 enden; sonst SKIP-Hinweis.
+- `MCP07`: `mcp-tools` nennt Tool, CLI-Befehl und `write`-Flag. Jedes Tool
+  existiert in `tools/list`, Programm und Unterkommando stehen in
+  `<programm> --help` aus dem venv, `write=true` entspricht genau dem
+  `confirm`-Schema aus `MCP02`.
+
+Exit-Codes wie beim UX-Gate: `0` = kein FAIL (SKIP erlaubt), `1` = FAIL,
+`2` = Aufruffehler.
