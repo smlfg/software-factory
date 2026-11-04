@@ -80,6 +80,15 @@ python harness/mcp_check.py harness/selftest/good_mcp --venv scratch/tmp/mcp-ven
   existiert in `tools/list`, Programm und Unterkommando stehen in
   `<programm> --help` aus dem venv, `write=true` entspricht genau dem
   `confirm`-Schema aus `MCP02`.
+- `MCP08`: Tool-Definitionsqualität nach Glamas TDQS. Jede Beschreibung hat
+  mindestens 40 Zeichen und wiederholt nicht nur den Namen; bei mehr als einem
+  Tool nennt sie die Verwendung bzw. Abgrenzung („Use when“, „Use this“,
+  „prefer“, „not for“, „vs“, „Nutze“, „statt“). Jede Property in
+  `inputSchema.properties` braucht eine nicht-leere `description`
+  (Abdeckung 100 %). Jedes Tool setzt `readOnlyHint` und `destructiveHint` als
+  bool; beide gleichzeitig `true` ist ein Fehler. Ist `uvx` im PATH, läuft
+  zusätzlich `uvx tdqs lint --file <tools.json> --fail-on error --format json`
+  (Exit 1 = FAIL, Exit 2 oder fehlendes `uvx` = Hinweis, kein FAIL).
 
 Exit-Codes wie beim UX-Gate: `0` = kein FAIL (SKIP erlaubt), `1` = FAIL,
 `2` = Aufruffehler.

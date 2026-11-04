@@ -23,7 +23,7 @@ Das Meta-Objekt benennt den Startbefehl, die CLI als Kern-Code und alle Umgebung
 
 ## Tools
 
-Jedes Tool bildet genau einen CLI-Befehl ab (erstes Wort Programm, zweites Wort Unterkommando) und ruft denselben Kern wie die CLI. `write: true` verlangt den Pflicht-Parameter `confirm: boolean` (ohne `confirm=true` nur Vorschau, kein Request) und entspricht `readOnlyHint=false` oder `destructiveHint=true`. Jedes Tool trägt `annotations` mit `title`, `readOnlyHint`, `destructiveHint`, `openWorldHint`.
+Jedes Tool bildet genau einen CLI-Befehl ab (erstes Wort Programm, zweites Wort Unterkommando) und ruft denselben Kern wie die CLI. `write: true` verlangt den Pflicht-Parameter `confirm: boolean` (ohne `confirm=true` nur Vorschau, kein Request) und entspricht `readOnlyHint=false` oder `destructiveHint=true`. Jedes Tool trägt `annotations` mit `title`, `readOnlyHint`, `destructiveHint`, `openWorldHint`. Für Glamas TDQS (MCP08) gilt zusätzlich: Die Tool-Beschreibung hat mindestens 40 Zeichen, wiederholt nicht nur den Namen und nennt bei mehreren Tools die Verwendung bzw. Abgrenzung („Use when“, „Use this“, „not for“, „Nutze“, „statt“). Jede Property in `inputSchema.properties` bekommt eine nicht-leere `description`; `readOnlyHint` und `destructiveHint` sind immer als bool gesetzt und nie beide `true`.
 
 ```mcp-tools
 [{"tool": "search_courses", "cli": "kurstool search", "write": false},
