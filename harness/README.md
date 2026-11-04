@@ -40,3 +40,21 @@ In ein neues Repo kopiert man `tests/harness/` komplett (inklusive
 `ux_spec.py`, `fake_server.py`, `ux_session.py`, `ux_check.py`,
 `sitecustomize.py` und `selftest/`) und ruft `ux_check.py` dort mit
 `docs/UX.md` als Eingabe auf.
+
+## MCP-Gate
+
+`mcp_check.py` prüft MCP-Server über stdio gegen `docs/MCP.md` (Blöcke
+`mcp-meta`, `mcp-routes`, `mcp-calls`). Der Client `mcp_client.py` spricht
+JSON-RPC 2.0 ohne MCP-SDK; Routen laufen über denselben `fake_server.py`
+wie das UX-Gate.
+
+```bash
+python harness/mcp_check.py <repo_dir> [--venv DIR] [--report FILE] [--cmd "befehl args"]
+python harness/mcp_check.py harness/selftest/good_mcp --venv scratch/tmp/mcp-venv
+```
+
+Teil 1 prüft `MCP00` (Start/initialize, kein stray stdout), `MCP01`
+(tools/list, Namen, Beschreibungen, Schemata, `readOnlyHint`), `MCP04`
+(Fehlerpfade für unbekannte Tools, falsche Typen und unerreichbare URL)
+sowie `MCP05` (keine Secrets in stdout/stderr/Antworten). Exit-Codes wie
+beim UX-Gate: `0` = kein FAIL, `1` = FAIL, `2` = Aufruffehler.
