@@ -137,7 +137,7 @@ Jede CLI, die UX-Gate (Schritt 5) und Pflicht-QA (Schritt 6) bestanden hat, beko
 | Eingabe | grüne CLI aus Schritt 5 und 6, `INTERFACE.md`, `docs/UX.md` |
 | Ausgabe (Dateien) | eigenes Repo `smlfg/<name>-mcp`, `docs/MCP.md` mit Block `mcp-tools` (Tabelle Tool -> CLI-Befehl) |
 | Gate | Das Repo nutzt das CLI-Paket als Abhängigkeit (gleicher Kern-Code, keine Kopie der Logik). Jedes Tool bildet einen CLI-Befehl ab. Schreibende Tools haben den Pflicht-Parameter `confirm: boolean`; ohne `confirm=true` gibt es kein Request, nur eine Vorschau. Jedes Tool trägt `annotations` mit `title`, `readOnlyHint`, `destructiveHint`, `openWorldHint`. Secrets nur über Env oder die 0600-Login-Config der CLI, nie als Tool-Argument zurückgegeben. |
-| Worker | opencode (`deepseek-v4.1-flash-free`, Fallback `glm-5.3-flash-free`) |
+| Worker | opencode Go (`opencode-go/deepseek-v4.1-flash`), Fallback Gratis (`deepseek-v4.1-flash-free` → `glm-5.3-flash-free` → `mimo-v2.6-flash-free`) |
 
 ## Schritt M2: MCP-Doku
 
@@ -185,7 +185,7 @@ Mehrere Repos laufen gleichzeitig, jede Lane arbeitet seriell nur in eigenen Rep
 | Fake-Server | je Gate-Lauf ein freier Zufallsport (`free_local_port`), daher keine Port-Kollision. |
 | Gemeinsame Dateien | `agent-learnings` und Template nur lesen; Änderungen in eigener Klon-Kopie und per Rebase pushen. |
 | RAM-Admission | über `hermes-run.sh` (`HERMES_RUN_BUDGET_MB`); Exit 75 = später erneut, nie umgehen; Lease `HAI_BOX_SLOTS`. |
-| Modellwahl | je Stufe mit Probe: `deepseek-v4.1-flash-free`, Fallback `glm-5.3-flash-free`, `mimo-v2.6-flash-free`; „Free usage limit reached“ lässt opencode still hängen. |
+| Modellwahl | je Stufe mit 45-s-Probe: `opencode-go/deepseek-v4.1-flash` (bezahlt), dann `deepseek-v4.1-flash-free`, `glm-5.3-flash-free`, `mimo-v2.6-flash-free`. Go mit 429/Usage-Limit → Grund in den Status, für eine Stunde Gratis. „Free usage limit reached“ lässt opencode still hängen, deshalb Probe vor jeder Stufe. |
 | Richtwert | 3 Lanes bei 15 GB RAM. |
 
 ## Warum
