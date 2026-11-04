@@ -21,10 +21,18 @@ class Call:
 
 
 @dataclass
+class ToolMapping:
+    tool: str
+    cli: str
+    write: bool = False
+
+
+@dataclass
 class McpSpec:
     meta: dict
     routes: list[Route] = field(default_factory=list)
     calls: list[Call] = field(default_factory=list)
+    tools: list[ToolMapping] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
     def ux_spec(self) -> UxSpec:
@@ -96,6 +104,31 @@ def _parse_calls(data: object, start: int, errors: list[str]) -> list[Call]:
     return calls
 
 
+def _parse_tools(data: object, start: int, errors: list[str]) -> list[ToolMapping]:
+    tools: list[ToolMapping] = []
+    if not isinstance(data, list):
+        errors.append(f"Zeile {start}: mcp-tools muss eine JSON-Liste sein")
+        return tools
+    for item in data:
+        if not isinstance(item, dict):
+            errors.append(f"Zeile {start}: mcp-tools-Eintrag ist kein Objekt")
+            continue
+        tool = str(item.get("tool", "")).strip()
+        cli = str(item.get("cli", "")).strip()
+        write = item.get("write", False)
+        if not tool:
+            errors.append(f"Zeile {start}: mcp-tools-Eintrag ohne tool")
+            continue
+        if not cli:
+            errors.append(f"Zeile {start}: mcp-tools-Eintrag {tool!r} ohne cli")
+            continue
+        if not isinstance(write, bool):
+            errors.append(f"Zeile {start}: mcp-tools-Eintrag {tool!r}: write muss boolean sein")
+            write = False
+        tools.append(ToolMapping(tool=tool, cli=cli, write=write))
+    return tools
+
+
 def parse(path: str | Path) -> McpSpec:
     """Liest eine MCP.md und validiert sie. Fehler landen in ``spec.errors``."""
     mcp_path = Path(path)
@@ -128,6 +161,10 @@ def parse(path: str | Path) -> McpSpec:
             data = _json_block(info, start, body, errors)
             if data is not None:
                 spec.calls.extend(_parse_calls(data, start, errors))
+        elif info == "mcp-tools":
+            data = _json_block(info, start, body, errors)
+            if data is not None:
+                spec.tools.extend(_parse_tools(data, start, errors))
 
     if not meta_seen and not meta_block_seen:
         errors.append("Zeile 0: mcp-meta fehlt")
@@ -144,6 +181,7 @@ def summary(spec: McpSpec) -> str:
         f"command: {command}",
         f"routes: {len(spec.routes)}",
         f"calls: {len(spec.calls)}",
+        f"tools: {len(spec.tools)}",
         f"errors: {len(spec.errors)}",
     ]
     lines.extend(f"  - {error}" for error in spec.errors)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Maschinelles MCP-Gate für stdio-Server (Prüfungen MCP00/01/04/05)."""
+"""Maschinelles MCP-Gate für stdio-Server (Prüfungen MCP00-MCP07)."""
 
 from __future__ import annotations
 
@@ -8,26 +8,57 @@ import json
 import re
 import secrets
 import shlex
+import shutil
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
 try:
+    import tomllib
+except ImportError:  # pragma: no cover - Python < 3.11
+    tomllib = None  # type: ignore[assignment]
+
+try:
     from fake_server import FakeServer
     from leak_check import find_secret_in_text
     from mcp_client import DEFAULT_TIMEOUT, McpClient, response_text
+    from mcp_inspector import (
+        InspectorError,
+        call_tool as inspector_call,
+        list_tools as inspector_list,
+        result_is_error as inspector_is_error,
+        result_text as inspector_text,
+    )
     from mcp_spec import McpSpec, parse
     from ux_session import build_env, free_local_port, install_fresh
 except ImportError:  # pragma: no cover - Paketimport
     from .fake_server import FakeServer
     from .leak_check import find_secret_in_text
     from .mcp_client import DEFAULT_TIMEOUT, McpClient, response_text
+    from .mcp_inspector import (
+        InspectorError,
+        call_tool as inspector_call,
+        list_tools as inspector_list,
+        result_is_error as inspector_is_error,
+        result_text as inspector_text,
+    )
     from .mcp_spec import McpSpec, parse
     from .ux_session import build_env, free_local_port, install_fresh
 
 PASS, FAIL, SKIP = "PASS", "FAIL", "SKIP"
-CHECK_IDS = ["MCP00", "MCP01", "MCP04", "MCP05"]
+CHECK_IDS = [
+    "MCP00",
+    "MCP01",
+    "MCP02",
+    "MCP03",
+    "MCP04",
+    "MCP05",
+    "MCP06",
+    "MCP07",
+]
+WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 TOOL_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 TRACEBACK = "Traceback (most recent call last)"
 UNKNOWN_TOOL = "__gate_unknown_tool__"
@@ -51,6 +82,7 @@ class Context:
     clients: list[McpClient] = field(default_factory=list)
     tools: list[dict] = field(default_factory=list)
     main_client: McpClient | None = None
+    server: FakeServer | None = None
 
 
 def _row(rows: dict[str, CheckRow], cid: str, ok: bool, detail: str) -> None:
@@ -144,18 +176,45 @@ def _check_mcp00(rows: dict[str, CheckRow], ctx: Context) -> None:
         _row(rows, "MCP00", True, "initialize < 20 s, serverInfo.name und capabilities.tools vorhanden")
 
 
+def _tool_is_write(tool: dict) -> bool:
+    annotations = tool.get("annotations")
+    if not isinstance(annotations, dict):
+        return False
+    return (
+        annotations.get("readOnlyHint") is False
+        or annotations.get("destructiveHint") is True
+    )
+
+
+def _tool_has_confirm(tool: dict) -> bool:
+    schema = tool.get("inputSchema")
+    if not isinstance(schema, dict):
+        return False
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return False
+    confirm = properties.get("confirm")
+    required = schema.get("required")
+    return (
+        isinstance(confirm, dict)
+        and confirm.get("type") == "boolean"
+        and isinstance(required, list)
+        and "confirm" in required
+    )
+
+
 def _check_mcp01(rows: dict[str, CheckRow], ctx: Context) -> None:
-    client = ctx.main_client
-    if client is None or not client.alive:
-        _row(rows, "MCP01", False, "Server läuft nach MCP00 nicht mehr")
-        return
     try:
-        tools = client.list_tools()
+        result = inspector_list(ctx.command, ctx.env)
     except Exception as exc:  # noqa: BLE001
         _row(rows, "MCP01", False, f"tools/list fehlgeschlagen: {type(exc).__name__}: {exc}")
         return
+    tools = result.data if isinstance(result.data, list) else []
     ctx.tools = tools
+    note = f" ({result.note})" if result.fallback else ""
     problems: list[str] = []
+    if result.exit_code != 0 and not result.fallback:
+        problems.append(f"Inspector-Exit {result.exit_code}: {result.stderr.strip()[:200]}")
     if not tools:
         problems.append("tools/list liefert kein Tool")
     names: set[str] = set()
@@ -191,7 +250,114 @@ def _check_mcp01(rows: dict[str, CheckRow], ctx: Context) -> None:
     if problems:
         _row(rows, "MCP01", False, "; ".join(problems))
     else:
-        _row(rows, "MCP01", True, f"{len(tools)} Tool(s), Namen/Schemata/Annotations gültig")
+        _row(
+            rows,
+            "MCP01",
+            True,
+            f"{len(tools)} Tool(s), Namen/Schemata/Annotations gültig{note}",
+        )
+
+
+def _check_mcp02(rows: dict[str, CheckRow], ctx: Context) -> None:
+    problems: list[str] = []
+    if not ctx.tools:
+        problems.append("keine Tools aus MCP01")
+    write_tools = 0
+    for tool in ctx.tools:
+        name = str(tool.get("name", "?"))
+        if not _tool_is_write(tool):
+            continue
+        write_tools += 1
+        if not _tool_has_confirm(tool):
+            problems.append(
+                f"{name!r}: schreibendes Tool ohne confirm (boolean, required)"
+            )
+    no_write_calls = [call for call in ctx.spec.calls if call.expect_no_write]
+    if ctx.server is None:
+        problems.append("Fake-Server nicht verfügbar")
+    else:
+        for call in no_write_calls:
+            arguments = dict(call.arguments)
+            arguments["confirm"] = False
+            stamp = ctx.server.mark(f"mcp02:{call.tool}")
+            try:
+                inspector_call(ctx.command, ctx.env, call.tool, arguments)
+            except Exception as exc:  # noqa: BLE001
+                problems.append(f"{call.tool!r}: Aufruf fehlgeschlagen: {exc}")
+                continue
+            writes = [
+                request
+                for request in ctx.server.requests
+                if request.t >= stamp and request.method.upper() in WRITE_METHODS
+            ]
+            if writes:
+                methods = ", ".join(sorted({request.method for request in writes}))
+                problems.append(
+                    f"{call.tool!r}: confirm=false löst {methods} am Fake-Server aus"
+                )
+    if problems:
+        _row(rows, "MCP02", False, "; ".join(dict.fromkeys(problems)))
+    else:
+        _row(
+            rows,
+            "MCP02",
+            True,
+            f"{write_tools} schreibende Tool(s) mit confirm; "
+            f"{len(no_write_calls)} Aufruf(e) ohne Bestätigung ohne Schreib-Request",
+        )
+
+
+def _check_mcp03(rows: dict[str, CheckRow], ctx: Context) -> None:
+    calls = [call for call in ctx.spec.calls if call.expect]
+    if not calls:
+        _row(rows, "MCP03", False, "kein mcp-calls-Eintrag mit expect")
+        return
+    problems: list[str] = []
+    notes: list[str] = []
+    stamp = ctx.server.mark("mcp03") if ctx.server is not None else None
+    for call in calls:
+        try:
+            result = inspector_call(ctx.command, ctx.env, call.tool, call.arguments)
+        except Exception as exc:  # noqa: BLE001
+            problems.append(f"{call.tool!r}: Aufruf fehlgeschlagen: {exc}")
+            continue
+        if result.fallback and result.note not in notes:
+            notes.append(result.note)
+        if not result.fallback and result.exit_code not in (0, 5):
+            problems.append(
+                f"{call.tool!r}: Inspector-Exit {result.exit_code}: "
+                f"{result.stderr.strip()[:200]}"
+            )
+        text = inspector_text(result.data)
+        if inspector_is_error(result.data):
+            problems.append(f"{call.tool!r}: Ergebnis ist isError: {text[:200]}")
+        for expected in call.expect:
+            if expected not in text:
+                problems.append(f"{call.tool!r}: erwarteter Text fehlt: {expected!r}")
+    if ctx.server is None:
+        problems.append("Fake-Server nicht verfügbar")
+    elif stamp is not None:
+        hits = [request for request in ctx.server.requests if request.t >= stamp]
+        if not hits:
+            problems.append("kein Request am Fake-Server während der Aufrufe")
+    net_log = str(ctx.env.get("ACCEPTANCE_NET_LOG", "")).strip()
+    if net_log:
+        log_path = Path(net_log)
+        if log_path.is_file():
+            foreign = log_path.read_text(encoding="utf-8", errors="replace").strip()
+            if foreign:
+                problems.append("Sandbox-Protokoll nennt fremden Host: " + foreign[:300])
+    if problems:
+        _row(rows, "MCP03", False, "; ".join(dict.fromkeys(problems)))
+    else:
+        suffix = ("; " + "; ".join(notes)) if notes else ""
+        _row(
+            rows,
+            "MCP03",
+            True,
+            f"{len(calls)} Aufruf(e) ohne isError und mit allen expect-Texten; "
+            f"Fake-Server bedient, kein fremder Host{suffix}",
+        )
 
 
 def _check_mcp04(rows: dict[str, CheckRow], ctx: Context) -> None:
@@ -309,6 +475,187 @@ def _check_mcp05(rows: dict[str, CheckRow], ctx: Context) -> None:
         )
 
 
+def _pyproject_project(repo: Path) -> dict | None:
+    path = repo / "pyproject.toml"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if tomllib is not None:
+        try:
+            data = tomllib.loads(text)
+        except ValueError:
+            return None
+        project = data.get("project")
+        return project if isinstance(project, dict) else None
+    name = re.search(r'^name\s*=\s*["\']([^"\']+)["\']', text, re.M)
+    version = re.search(r'^version\s*=\s*["\']([^"\']+)["\']', text, re.M)
+    if not name:
+        return None
+    return {
+        "name": name.group(1),
+        "version": version.group(1) if version else "",
+    }
+
+
+def _check_mcp06(rows: dict[str, CheckRow], ctx: Context) -> None:
+    server_path = ctx.repo / "server.json"
+    try:
+        data = json.loads(server_path.read_text(encoding="utf-8"))
+    except OSError:
+        _row(rows, "MCP06", False, "server.json fehlt")
+        return
+    except json.JSONDecodeError as exc:
+        _row(rows, "MCP06", False, f"server.json ist kein gültiges JSON: {exc.msg}")
+        return
+    if not isinstance(data, dict):
+        _row(rows, "MCP06", False, "server.json ist kein JSON-Objekt")
+        return
+    problems: list[str] = []
+    name = str(data.get("name", "")).strip()
+    if not name.startswith("io.github.smlfg/"):
+        problems.append(f"name {name!r} beginnt nicht mit 'io.github.smlfg/'")
+    project = _pyproject_project(ctx.repo)
+    if project is None:
+        problems.append("pyproject.toml mit [project] fehlt oder ist ungültig")
+    else:
+        project_version = str(project.get("version", ""))
+        if str(data.get("version", "")) != project_version:
+            problems.append(
+                f"version {data.get('version')!r} != pyproject {project_version!r}"
+            )
+        packages = data.get("packages")
+        if not isinstance(packages, list) or not packages or not isinstance(
+            packages[0], dict
+        ):
+            problems.append("packages[0] fehlt")
+        else:
+            identifier = str(packages[0].get("identifier", ""))
+            if identifier != str(project.get("name", "")):
+                problems.append(
+                    f"packages[0].identifier {identifier!r} != pyproject.name "
+                    f"{project.get('name')!r}"
+                )
+    readme_path = ctx.repo / "README.md"
+    try:
+        readme = readme_path.read_text(encoding="utf-8")
+    except OSError:
+        problems.append("README.md fehlt")
+    else:
+        marker = f"<!-- mcp-name: {name} -->"
+        if marker not in readme:
+            problems.append(f"README.md enthält {marker!r} nicht")
+        if "mcpServers" not in readme:
+            problems.append("README.md enthält keinen mcpServers-Block")
+    if problems:
+        _row(rows, "MCP06", False, "; ".join(problems))
+        return
+    publisher = shutil.which("mcp-publisher")
+    if not publisher:
+        _skip(
+            rows,
+            "MCP06",
+            "statische Metadaten OK; mcp-publisher nicht im PATH, validate übersprungen",
+        )
+        return
+    try:
+        completed = subprocess.run(
+            [publisher, "validate", "server.json"],
+            cwd=str(ctx.repo),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        _skip(
+            rows,
+            "MCP06",
+            f"statische Metadaten OK; mcp-publisher validate nicht ausführbar "
+            f"({type(exc).__name__}), übersprungen",
+        )
+        return
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout).strip().replace("\n", " ")
+        _row(
+            rows,
+            "MCP06",
+            False,
+            f"mcp-publisher validate Exit {completed.returncode}: {detail[:400]}",
+        )
+    else:
+        _row(rows, "MCP06", True, "server.json gültig (mcp-publisher validate Exit 0)")
+
+
+def _check_mcp07(rows: dict[str, CheckRow], ctx: Context) -> None:
+    if not ctx.spec.tools:
+        _row(rows, "MCP07", False, "mcp-tools-Block fehlt oder ist leer")
+        return
+    tools_by_name = {str(tool.get("name", "")): tool for tool in ctx.tools}
+    problems: list[str] = []
+    help_cache: dict[str, tuple[str | None, str | None]] = {}
+    for mapping in ctx.spec.tools:
+        tool = tools_by_name.get(mapping.tool)
+        if tool is None:
+            problems.append(f"Tool {mapping.tool!r} fehlt in tools/list")
+        else:
+            has_confirm = _tool_has_confirm(tool)
+            if mapping.write != has_confirm:
+                problems.append(
+                    f"{mapping.tool!r}: write={mapping.write} passt nicht zu "
+                    f"confirm={has_confirm}"
+                )
+        parts = mapping.cli.split()
+        if len(parts) < 2:
+            problems.append(
+                f"CLI {mapping.cli!r} braucht Programm und Unterkommando"
+            )
+            continue
+        program, subcommand = parts[0], parts[1]
+        if program not in help_cache:
+            executable = ctx.bin_dir / program
+            if not executable.is_file():
+                help_cache[program] = (
+                    None,
+                    f"Programm {program!r} fehlt im venv",
+                )
+            else:
+                try:
+                    completed = subprocess.run(
+                        [str(executable), "--help"],
+                        cwd=str(ctx.repo),
+                        env=ctx.env,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    help_cache[program] = (
+                        None,
+                        f"{program} --help nicht ausführbar: {exc}",
+                    )
+                else:
+                    help_cache[program] = (
+                        completed.stdout + completed.stderr,
+                        None,
+                    )
+        help_text, error = help_cache[program]
+        if error is not None:
+            problems.append(error)
+        elif help_text is not None and subcommand not in help_text:
+            problems.append(
+                f"Unterkommando {subcommand!r} fehlt in {program} --help"
+            )
+    if problems:
+        _row(rows, "MCP07", False, "; ".join(dict.fromkeys(problems)))
+    else:
+        _row(
+            rows,
+            "MCP07",
+            True,
+            f"{len(ctx.spec.tools)} Tool(s) mit CLI-Parität und passendem write-Flag",
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="MCP-Gate für stdio-Server")
     parser.add_argument("repo_dir")
@@ -377,12 +724,17 @@ def main(argv: list[str] | None = None) -> int:
             bin_dir=bin_dir,
             env=env,
             canaries=canaries,
+            server=server,
         )
         try:
             _check_mcp00(rows, ctx)
             _check_mcp01(rows, ctx)
+            _check_mcp02(rows, ctx)
+            _check_mcp03(rows, ctx)
             _check_mcp04(rows, ctx)
             _check_mcp05(rows, ctx)
+            _check_mcp06(rows, ctx)
+            _check_mcp07(rows, ctx)
         finally:
             for client in ctx.clients:
                 client.close()
