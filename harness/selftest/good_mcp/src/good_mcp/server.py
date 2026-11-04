@@ -16,7 +16,7 @@ mcp = FastMCP(SERVER_NAME)
 
 @mcp.tool(
     name="search_items",
-    description="Sucht Artikel im Katalog anhand eines Suchbegriffs.",
+    description="Sucht Artikel im Katalog anhand eines Suchbegriffs. Nutze dieses Tool, wenn du Artikel finden willst.",
     annotations=ToolAnnotations(
         readOnlyHint=True, destructiveHint=False, openWorldHint=True
     ),
@@ -30,7 +30,7 @@ def search_items(
 
 @mcp.tool(
     name="get_item",
-    description="Liefert die Details eines Artikels anhand seiner ID.",
+    description="Liefert die Details eines Artikels anhand seiner ID. Nutze dieses Tool, wenn die ID bereits bekannt ist.",
     annotations=ToolAnnotations(
         readOnlyHint=True, destructiveHint=False, openWorldHint=True
     ),
@@ -44,7 +44,7 @@ def get_item(
 
 @mcp.tool(
     name="book_item",
-    description="Bucht einen Artikel verbindlich nach ausdrücklicher Bestätigung.",
+    description="Bucht einen Artikel verbindlich nach ausdrücklicher Bestätigung. Nutze dieses Tool nur zum Buchen, nicht für die Suche.",
     annotations=ToolAnnotations(
         readOnlyHint=False, destructiveHint=True, openWorldHint=True
     ),

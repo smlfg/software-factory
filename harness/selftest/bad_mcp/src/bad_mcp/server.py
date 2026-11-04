@@ -70,7 +70,6 @@ def tools() -> list[dict]:
                 "properties": {
                     "id": {
                         "type": "string",
-                        "description": "Eindeutige Artikel-ID",
                     }
                 },
                 "required": ["id"],
