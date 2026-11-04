@@ -30,6 +30,18 @@ Thema (topics/, NEXT20.md)
         |
         v
 [7] Push + About/Topics + Meldung an Samuel + LOG.md + runs/runs.csv
+        |
+        v
+[M1] MCP-Zuschnitt: eigenes Repo <name>-mcp, CLI als Abhängigkeit
+        |  Gate: mcp-tools (Tool -> CLI-Befehl) + annotations
+        v
+[M2] docs/MCP.md nach template/MCP.md
+        |  Gate: template-Blöcke vorhanden und parsebar
+        v
+[M3] MCP-Gate: mcp_check.py (MCP00-MCP07) + QA-Smoke
+        |  FAIL -> zurück zu [M1], nicht weiter
+        v
+[M4] Veröffentlichen: PyPI (uvx), mcp-publisher, Smithery/Glama
 ```
 
 ## Schritt 0: Thema wählen
@@ -114,6 +126,50 @@ Alle Formular- und Request-Schritte der schreibenden Aktion werden live erkundet
 | Gate | Repo public, About und Topics gesetzt; Meldung enthält was gebaut wurde, Schnellstart und offene Punkte; `LOG.md` und `runs.csv` aktualisiert |
 | Worker | tägliche Routine (Grok Bot orchestriert: Push, Meldung), opencode (Texte, LOG-/runs-Einträge) |
 
+## MCP-Strang (Schritte M1-M4)
+
+Jede CLI, die UX-Gate (Schritt 5) und Pflicht-QA (Schritt 6) bestanden hat, bekommt einen MCP-Server. Der Strang läuft nach Schritt 7 und nutzt denselben Kern-Code; die Schritte 0-7 bleiben unverändert.
+
+## Schritt M1: Zuschnitt
+
+| Feld | Inhalt |
+|---|---|
+| Eingabe | grüne CLI aus Schritt 5 und 6, `INTERFACE.md`, `docs/UX.md` |
+| Ausgabe (Dateien) | eigenes Repo `smlfg/<name>-mcp`, `docs/MCP.md` mit Block `mcp-tools` (Tabelle Tool -> CLI-Befehl) |
+| Gate | Das Repo nutzt das CLI-Paket als Abhängigkeit (gleicher Kern-Code, keine Kopie der Logik). Jedes Tool bildet einen CLI-Befehl ab. Schreibende Tools haben den Pflicht-Parameter `confirm: boolean`; ohne `confirm=true` gibt es kein Request, nur eine Vorschau. Jedes Tool trägt `annotations` mit `title`, `readOnlyHint`, `destructiveHint`, `openWorldHint`. Secrets nur über Env oder die 0600-Login-Config der CLI, nie als Tool-Argument zurückgegeben. |
+| Worker | opencode (`deepseek-v4.1-flash-free`, Fallback `glm-5.3-flash-free`) |
+
+## Schritt M2: MCP-Doku
+
+| Feld | Inhalt |
+|---|---|
+| Eingabe | CLI-Repo, `template/MCP.md` |
+| Ausgabe (Dateien) | `docs/MCP.md` mit `mcp-meta` (command, cli, base_url_env, secret_env, env), `mcp-routes` (Format wie `ux-routes`), `mcp-calls` (tool, arguments, expect bzw. expect_no_write) |
+| Gate | Alle Blöcke nach `template/MCP.md` vorhanden und parsebar |
+| Worker | opencode |
+
+## Schritt M3: MCP-Gate
+
+| Feld | Inhalt |
+|---|---|
+| Eingabe | MCP-Repo, `docs/MCP.md`, Fake-Server |
+| Ausgabe (Dateien) | Bericht von `mcp_check.py`, `docs/QA.md` Abschnitt `MCP` |
+| Gate | `python harness/mcp_check.py <repo>` ohne FAIL: MCP00 Start über stdio + `initialize`, kein Fremd-Output auf stdout; MCP01 `tools/list` gültig (Namen, description >= 20 Zeichen, inputSchema object, Property-Beschreibungen, annotations); MCP02 schreibende Tools: `confirm` Pflicht, ohne `confirm` kein Schreib-Request am Fake-Server; MCP03 alle `mcp-calls` gegen den Fake-Server liefern erwartete Texte, mindestens ein Request kommt am Fake-Server an, keiner an fremde Hosts; MCP04 Fehlerpfade (unbekanntes Tool, falsche Typen, Dienst nicht erreichbar) liefern MCP-Fehler bzw. `isError` statt Traceback, Server läuft weiter; MCP05 keine Secrets (Kanarienwerte) in Ausgaben; MCP06 Publish-Metadaten: `server.json` (Name `io.github.smlfg/<name>-mcp`, Version = pyproject), README mit `<!-- mcp-name: ... -->` und Config-Snippets für Claude Desktop/Claude Code/Cursor; MCP07 jedes Tool aus `mcp-tools` existiert in `tools/list` und der zugeordnete CLI-Befehl in `<cli> --help`. Danach QA-Smoke mit echtem MCP-Client (offizielles Python-SDK `mcp` oder `npx @modelcontextprotocol/inspector --cli`; Inspector braucht Node >= 22.19): `tools/list` + jedes lesende Tool einmal live, Ergebnis in `docs/QA.md` Abschnitt `MCP`. |
+| Worker | opencode (Ausführung), Samuel (Gegenprobe) |
+
+## Schritt M4: Veröffentlichen
+
+| Feld | Inhalt |
+|---|---|
+| Eingabe | grüner MCP-Gate, `server.json`, README |
+| Ausgabe (Dateien) | PyPI-Paket, `server.json` veröffentlicht, Listing Smithery (`smithery.yaml`) und Glama (`glama.json`), README-Abschnitt „In Claude/Cursor nutzen“, Geschäftsmodell-Notiz in `docs/MCP.md` |
+| Gate | Push nur bei grünem Gate; `mcp-publisher validate server.json` und `mcp-publisher publish` grün; PyPI-Paket nur mit vorhandenem Token und `uvx`-fähig; Remote-Variante (Streamable HTTP, gehostet) prüfen und für öffentliche, login-freie Dienste bevorzugen. |
+| Worker | tägliche Routine (Push, Meldung), opencode (Metadaten, Texte) |
+
+Erfolg wird nur über GitHub-Traffic (`gh api repos/smlfg/<repo>/traffic/views|clones|popular/referrers`, 14 Tage, regelmäßig sichern) und Smithery-Tool-Calls gemessen, nie über PyPI-Downloads.
+
+Je MCP steht eine Geschäftsmodell-Notiz in `docs/MCP.md` (z. B. gehostete Version, Paid Tier für Watch/Alerts, B2B für Hochschulen/Praxen); die Rangliste steht in `/home/box/cli-daily/MCP-NEXT.md`.
+
 ## Warum
 
 - `hochschulsport-cli` bestand 18 von 19 Tests, war aber für Menschen unbedienbar.
@@ -128,6 +184,8 @@ Recherche, Erkundung und Bau laufen über opencode. Grok Bot verteilt nur Aufgab
 | Aufgabe | Wer | Budget |
 |---|---|---|
 | Thema und Demand prüfen | opencode | eine Recherche je Thema |
+| Nachfrage-Recherche | Gemini CLI (`gemini --skip-trust -m gemini-3.8-flash`) oder opencode | eine je Kandidat |
 | Live-Erkundung und UX-Spec | opencode | eine Erkundung je Tool, Nachbesserung nur bei geändertem Formular |
 | Bau und Fixes | opencode | kleine Schritte mit Commit und pytest |
+| MCP-Server bauen | opencode | wie CLI-Bau |
 | Verteilen und Status lesen | Grok Bot | eine Orchestrierungs-Nachricht je Schritt, eine Zusammenfassung am Ende |
