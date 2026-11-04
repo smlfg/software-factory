@@ -119,6 +119,27 @@ def _parse_json(text: str) -> object:
         raise InspectorError(f"Inspector-JSON nicht lesbar: {exc.msg}") from exc
 
 
+# Nur Server-spezifische Variablen und eine kleine Basis gehen als ``-e`` auf die
+# Kommandozeile. Alles andere aus os.environ (API-Keys, Tokens) würde sonst in
+# ``ps`` und in npm-Debug-Logs (argv) landen.
+_BASE_ENV = ("PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TMPDIR", "VIRTUAL_ENV", "PYTHONPATH", "PYTHONIOENCODING", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME")
+_SECRET_MARKERS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "AUTH", "COOKIE", "SESSION", "__CURSOR")
+
+
+def _forward_env(env: dict[str, str]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for key, value in env.items():
+        value = str(value)
+        if value == "":
+            continue
+        upper = key.upper()
+        if key in _BASE_ENV or os.environ.get(key) != value:
+            if any(marker in upper for marker in _SECRET_MARKERS) and os.environ.get(key) == value:
+                continue
+            out[key] = value
+    return out
+
+
 def _run(
     server_command: list[str],
     env: dict[str, str],
@@ -134,9 +155,7 @@ def _run(
         "--cli",
         *[str(part) for part in server_command],
     ]
-    for key, value in env.items():
-        if str(value) == "":
-            continue
+    for key, value in _forward_env(env).items():
         command.extend(["-e", f"{key}={value}"])
     command.extend(method_args)
     try:
