@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Maschinelles MCP-Gate für stdio-Server (Prüfungen MCP00-MCP07)."""
+"""Maschinelles MCP-Gate für stdio-Server (Prüfungen MCP00-MCP08)."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import secrets
 import shlex
@@ -57,9 +58,15 @@ CHECK_IDS = [
     "MCP05",
     "MCP06",
     "MCP07",
+    "MCP08",
 ]
 WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 TOOL_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+USAGE_RE = re.compile(
+    r"use when|use this|use\b[^.!?\n]{0,60}\binstead|prefer|not for|\bvs\.?\b"
+    r"|\bnutze(?:n|st)?\b|\bstatt\b",
+    re.IGNORECASE,
+)
 TRACEBACK = "Traceback (most recent call last)"
 UNKNOWN_TOOL = "__gate_unknown_tool__"
 
@@ -656,6 +663,163 @@ def _check_mcp07(rows: dict[str, CheckRow], ctx: Context) -> None:
         )
 
 
+def _normalized(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def _mcp08_problems(tools: list[dict]) -> tuple[list[str], int]:
+    """Deterministische TDQS-Prüfungen; liefert Probleme und Parameter-Abdeckung in %."""
+    problems: list[str] = []
+    multiple = len(tools) > 1
+    total_props = 0
+    described_props = 0
+    for tool in tools:
+        name = str(tool.get("name", "?"))
+        description = str(tool.get("description") or "").strip()
+        if len(description) < 40:
+            problems.append(f"{name!r}: description fehlt oder < 40 Zeichen")
+        else:
+            normalized = _normalized(description)
+            normalized_name = _normalized(name)
+            if normalized in {
+                normalized_name,
+                f"tool{normalized_name}",
+                f"{normalized_name}tool",
+            }:
+                problems.append(f"{name!r}: description wiederholt nur den Namen")
+        if multiple and not USAGE_RE.search(description):
+            problems.append(
+                f"{name!r}: Abgrenzung fehlt (Use when/Use this/.../Nutze/statt)"
+            )
+        schema = tool.get("inputSchema")
+        properties = schema.get("properties") if isinstance(schema, dict) else None
+        if isinstance(properties, dict):
+            for prop, prop_schema in properties.items():
+                total_props += 1
+                prop_description = ""
+                if isinstance(prop_schema, dict):
+                    prop_description = str(
+                        prop_schema.get("description") or ""
+                    ).strip()
+                if prop_description:
+                    described_props += 1
+                else:
+                    problems.append(f"{name}.{prop}: Parameter-Beschreibung fehlt")
+        annotations = tool.get("annotations")
+        if not isinstance(annotations, dict):
+            problems.append(f"{name!r}: annotations fehlen")
+            continue
+        read_only = annotations.get("readOnlyHint")
+        destructive = annotations.get("destructiveHint")
+        if not isinstance(read_only, bool):
+            problems.append(
+                f"{name!r}: annotations.readOnlyHint fehlt oder ist kein bool"
+            )
+        if not isinstance(destructive, bool):
+            problems.append(
+                f"{name!r}: annotations.destructiveHint fehlt oder ist kein bool"
+            )
+        if read_only is True and destructive is True:
+            problems.append(
+                f"{name!r}: readOnlyHint=true und destructiveHint=true widersprechen sich"
+            )
+    coverage = round(described_props * 100 / total_props) if total_props else 100
+    return problems, coverage
+
+
+def _tdqs_problems(tools: list[dict]) -> tuple[list[str], str]:
+    """Lässt Glamas TDQS-Linter auf den tools/list-Daten laufen (optional via uvx)."""
+    uvx = shutil.which("uvx")
+    if not uvx:
+        return [], "tdqs übersprungen (uvx fehlt)"
+    tmp = _scratch_tmp()
+    path = tmp / f"mcp08-tools-{secrets.token_hex(4)}.json"
+    try:
+        path.write_text(
+            json.dumps({"tools": tools}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        return [], f"tdqs übersprungen (JSON nicht schreibbar: {exc})"
+    env = dict(os.environ)
+    env["TMPDIR"] = str(tmp)
+    try:
+        completed = subprocess.run(
+            [
+                uvx,
+                "tdqs",
+                "lint",
+                "--file",
+                str(path),
+                "--fail-on",
+                "error",
+                "--format",
+                "json",
+            ],
+            cwd=str(tmp),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        return [], "tdqs übersprungen (Timeout 120 s)"
+    except OSError as exc:
+        return [], f"tdqs übersprungen ({type(exc).__name__})"
+    if completed.returncode == 0:
+        return [], "tdqs OK"
+    if completed.returncode == 2:
+        return [], "tdqs übersprungen (Exit 2)"
+    if completed.returncode != 1:
+        return [], f"tdqs übersprungen (Exit {completed.returncode})"
+    problems: list[str] = []
+    try:
+        data = json.loads(completed.stdout)
+        findings = data.get("findings") if isinstance(data, dict) else None
+    except ValueError:
+        findings = None
+    if not isinstance(findings, list):
+        raw = (completed.stdout or completed.stderr).strip().replace("\n", " ")
+        return [f"tdqs lint Exit 1: {raw[:400]}"], ""
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        severity = str(finding.get("severity", "?"))
+        rule = str(finding.get("rule", "?"))
+        tool = str(finding.get("tool", "?"))
+        message = str(finding.get("message", "")).strip().replace("\n", " ")
+        problems.append(f"tdqs {severity} {rule} [{tool}]: {message}")
+    if not problems:
+        problems.append("tdqs lint Exit 1")
+    return problems, ""
+
+
+def _check_mcp08(rows: dict[str, CheckRow], ctx: Context) -> None:
+    if not ctx.tools:
+        _row(rows, "MCP08", False, "keine Tools aus MCP01")
+        return
+    problems, coverage = _mcp08_problems(ctx.tools)
+    tdqs_problems, tdqs_note = _tdqs_problems(ctx.tools)
+    problems.extend(tdqs_problems)
+    coverage_text = f"Parameter-Abdeckung {coverage}%"
+    if problems:
+        _row(
+            rows,
+            "MCP08",
+            False,
+            "; ".join(dict.fromkeys(problems)) + f"; {coverage_text}",
+        )
+    else:
+        suffix = f"; {tdqs_note}" if tdqs_note else ""
+        _row(
+            rows,
+            "MCP08",
+            True,
+            f"{len(ctx.tools)} Tool(s): Beschreibungen, Abgrenzung und "
+            f"Annotations OK; {coverage_text}{suffix}",
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="MCP-Gate für stdio-Server")
     parser.add_argument("repo_dir")
@@ -735,6 +899,7 @@ def main(argv: list[str] | None = None) -> int:
             _check_mcp05(rows, ctx)
             _check_mcp06(rows, ctx)
             _check_mcp07(rows, ctx)
+            _check_mcp08(rows, ctx)
         finally:
             for client in ctx.clients:
                 client.close()
