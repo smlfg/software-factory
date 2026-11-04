@@ -174,6 +174,20 @@ Je MCP steht eine Geschäftsmodell-Notiz in `docs/MCP.md` (z. B. gehostete Versi
 
 Der Mensa-MCP läuft als Remote-Server (Streamable HTTP, stateless, ohne Login) unter https://mcp.human-agent-interface.com/mensa/mcp: erst FastAPI-Gateway hinter Cloudflare Tunnel auf der Box, jetzt als Cloudflare Worker. Gründe, warum er live ging: öffentliche API ohne Key (OpenMensa v2) statt HTML-Scraping, nur 3 klar beschriebene read-only Tools mit vollständigen annotations, Nutzer brauchen keine Installation (URL in Claude „Add custom connector“ bzw. `claude mcp add --transport http`), Datenschutz-/Nutzungsseiten (`/privacy`, `/terms`) für Directory-Einreichungen, Test mit offiziellem MCP-SDK-Client gegen die echte API, Anfrage an den API-Betreiber (OpenMensa) zur Erlaubnis/Attribution. Daraus: für jeden öffentlichen Dienst zuerst prüfen, ob eine Remote-Variante unter `mcp.human-agent-interface.com/<name>/mcp` möglich ist.
 
+## Parallele Lanes
+
+Mehrere Repos laufen gleichzeitig, jede Lane arbeitet seriell nur in eigenen Repos.
+
+| Thema | Regel |
+|---|---|
+| Lane | `lane.sh <nr> <repo>...`; eine Lane fasst nur ihre eigenen Repos an. |
+| Temp und Marker | `TMPDIR=<repo>/scratch/tmp`, eigene `scratch/`-Marker je Repo. |
+| Fake-Server | je Gate-Lauf ein freier Zufallsport (`free_local_port`), daher keine Port-Kollision. |
+| Gemeinsame Dateien | `agent-learnings` und Template nur lesen; Änderungen in eigener Klon-Kopie und per Rebase pushen. |
+| RAM-Admission | über `hermes-run.sh` (`HERMES_RUN_BUDGET_MB`); Exit 75 = später erneut, nie umgehen; Lease `HAI_BOX_SLOTS`. |
+| Modellwahl | je Stufe mit Probe: `deepseek-v4.1-flash-free`, Fallback `glm-5.3-flash-free`, `mimo-v2.6-flash-free`; „Free usage limit reached“ lässt opencode still hängen. |
+| Richtwert | 3 Lanes bei 15 GB RAM. |
+
 ## Warum
 
 - `hochschulsport-cli` bestand 18 von 19 Tests, war aber für Menschen unbedienbar.
