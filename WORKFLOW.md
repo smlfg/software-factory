@@ -170,6 +170,10 @@ Erfolg wird nur über GitHub-Traffic (`gh api repos/smlfg/<repo>/traffic/views|c
 
 Je MCP steht eine Geschäftsmodell-Notiz in `docs/MCP.md` (z. B. gehostete Version, Paid Tier für Watch/Alerts, B2B für Hochschulen/Praxen); die Rangliste steht in `/home/box/cli-daily/MCP-NEXT.md`.
 
+### Lehre aus dem ersten Live-MCP (Mensa, 03.11.2026)
+
+Der Mensa-MCP läuft als Remote-Server (Streamable HTTP, stateless, ohne Login) unter https://mcp.human-agent-interface.com/mensa/mcp: erst FastAPI-Gateway hinter Cloudflare Tunnel auf der Box, jetzt als Cloudflare Worker. Gründe, warum er live ging: öffentliche API ohne Key (OpenMensa v2) statt HTML-Scraping, nur 3 klar beschriebene read-only Tools mit vollständigen annotations, Nutzer brauchen keine Installation (URL in Claude „Add custom connector“ bzw. `claude mcp add --transport http`), Datenschutz-/Nutzungsseiten (`/privacy`, `/terms`) für Directory-Einreichungen, Test mit offiziellem MCP-SDK-Client gegen die echte API, Anfrage an den API-Betreiber (OpenMensa) zur Erlaubnis/Attribution. Daraus: für jeden öffentlichen Dienst zuerst prüfen, ob eine Remote-Variante unter `mcp.human-agent-interface.com/<name>/mcp` möglich ist.
+
 ## Warum
 
 - `hochschulsport-cli` bestand 18 von 19 Tests, war aber für Menschen unbedienbar.
