@@ -170,6 +170,15 @@ Erfolg wird nur über GitHub-Traffic (`gh api repos/smlfg/<repo>/traffic/views|c
 
 Je MCP steht eine Geschäftsmodell-Notiz in `docs/MCP.md` (z. B. gehostete Version, Paid Tier für Watch/Alerts, B2B für Hochschulen/Praxen); die Rangliste steht in `/home/box/cli-daily/MCP-NEXT.md`.
 
+### Lehren aus chefkoch-mcp (04.11.2026, erster Server durch den Strang)
+
+- PyPI lehnt Git-Abhängigkeiten ab: Erst die CLI auf PyPI veröffentlichen (`license = "MIT"` als SPDX, ohne License-Classifier, `twine check`), dann den MCP-Server mit `<cli>>=x.y.z`. Für den Gate-Lauf vor dem Release das CLI-Wheel lokal bauen und `PIP_FIND_LINKS=scratch/wheels` setzen.
+- Der Inspector schickt `--tool-arg` als JSON: rein numerische IDs kommen als Zahl. ID-Parameter immer `str | int`.
+- Fehlermeldungen im MCP nennen Tools (`search_recipes`), nicht CLI-Befehle.
+- Live-QA mit dem Inspector findet Kern-Bugs, die die CLI-QA übersah ("0 Basilikum" in der Einkaufsliste): Fix gehört in die CLI, dann Patch-Release.
+- `mcp-publisher`-Login (GitHub-JWT) läuft ab. Vor `publish` `mcp-publisher login github` (Device-Flow, braucht Samuel einmal im Browser); keinen fremden Token durchreichen.
+- Smithery-Listing braucht Samuels Smithery-Login; Glama liest `glama.json` aus dem öffentlichen Repo.
+
 ### Lehre aus dem ersten Live-MCP (Mensa, 03.11.2026)
 
 Der Mensa-MCP läuft als Remote-Server (Streamable HTTP, stateless, ohne Login) unter https://mcp.human-agent-interface.com/mensa/mcp: erst FastAPI-Gateway hinter Cloudflare Tunnel auf der Box, jetzt als Cloudflare Worker. Gründe, warum er live ging: öffentliche API ohne Key (OpenMensa v2) statt HTML-Scraping, nur 3 klar beschriebene read-only Tools mit vollständigen annotations, Nutzer brauchen keine Installation (URL in Claude „Add custom connector“ bzw. `claude mcp add --transport http`), Datenschutz-/Nutzungsseiten (`/privacy`, `/terms`) für Directory-Einreichungen, Test mit offiziellem MCP-SDK-Client gegen die echte API, Anfrage an den API-Betreiber (OpenMensa) zur Erlaubnis/Attribution. Daraus: für jeden öffentlichen Dienst zuerst prüfen, ob eine Remote-Variante unter `mcp.human-agent-interface.com/<name>/mcp` möglich ist.
