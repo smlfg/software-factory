@@ -6,7 +6,11 @@
 # Jedes Ergebnis landet in $FACTORY_STATE_DIR/STATUS.md, damit ein Abbruch sichtbar ist statt still zu hängen.
 #
 # Env (alle optional):
-#   FACTORY_MODELS        Kandidaten in Reihenfolge (Leerzeichen-getrennt)
+#   FACTORY_MODELS        Kandidaten in Reihenfolge (Leerzeichen-getrennt).
+#                         Default: bezahltes opencode Go zuerst, dann Gratis-Modelle als Fallback.
+#   OPENCODE_GO_ENV       Datei mit OPENCODE_GO_API_KEY=… (Default /home/box/.secrets/opencode-go.env, 0600).
+#                         Der Key geht nur an opencode-go/*-Proben (als OPENCODE_API_KEY), nie an Gratis-Modelle,
+#                         und wird nie ausgegeben.
 #   HEALTH_TIMEOUT_S      Timeout je Modell-Probe (Default 45)
 #   HEALTH_MIN_AVAIL_MB   Mindestens verfügbarer RAM (Default 1500)
 #   HEALTH_MAX_SWAP_PCT   Maximal belegter Swap in % (Default 90)
@@ -18,7 +22,8 @@
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 STATE=${FACTORY_STATE_DIR:-$HERE/state}; mkdir -p "$STATE"
-MODELS=${FACTORY_MODELS:-"opencode/deepseek-v4.1-flash-free opencode/glm-5.3-flash-free opencode/mimo-v2.6-flash-free"}
+MODELS=${FACTORY_MODELS:-"opencode-go/deepseek-v4.1-flash opencode/deepseek-v4.1-flash-free opencode/glm-5.3-flash-free opencode/mimo-v2.6-flash-free"}
+GO_ENV=${OPENCODE_GO_ENV:-/home/box/.secrets/opencode-go.env}
 T=${HEALTH_TIMEOUT_S:-45}
 OPENCODE=${OPENCODE_BIN:-opencode}; GH=${GH_BIN:-gh}; MEMINFO=${MEMINFO:-/proc/meminfo}
 SKIP=" ${HEALTH_SKIP:-} "
@@ -51,11 +56,20 @@ if ! skip disk; then
 fi
 # 4) Modelle: erstes, das in T Sekunden mit OK antwortet. Eigenes leeres Verzeichnis, damit keine alte Sitzung stört.
 PROBE=$(mktemp -d "$STATE/probe.XXXXXX"); trap 'rm -rf "$PROBE"' EXIT
+# Go-Key nur für opencode-go/* in einer Subshell setzen; Gratis-Proben laufen ohne Key.
+probe(){ ( cd "$PROBE" || exit 1
+  if [[ "$1" == opencode-go/* ]]; then
+    if [ -z "${OPENCODE_GO_API_KEY:-}" ] && [ -r "$GO_ENV" ]; then set -a; . "$GO_ENV"; set +a; fi
+    [ -n "${OPENCODE_GO_API_KEY:-}" ] || { echo "kein OPENCODE_GO_API_KEY"; exit 78; }
+    export OPENCODE_API_KEY=$OPENCODE_GO_API_KEY
+  else unset OPENCODE_GO_API_KEY; fi
+  timeout -k 5 "$T" "$OPENCODE" run -m "$1" "Antworte nur mit OK" < /dev/null ) 2>&1; }
 for m in $MODELS; do
-  OUT=$(cd "$PROBE" && timeout -k 5 "$T" "$OPENCODE" run -m "$m" "Antworte nur mit OK" 2>&1 < /dev/null); RC=$?
+  OUT=$(probe "$m"); RC=$?
   if [ $RC = 0 ] && grep -q OK <<<"$OUT"; then add "$m" OK "antwortet"; status OK "Modell $m"; echo "$m"; exit 0; fi
   if [ $RC = 124 ] || [ $RC = 137 ]; then WHY="Timeout nach ${T}s"
-  elif grep -qi "usage limit\|rate limit\|429" <<<"$OUT"; then WHY="Kontingent erschöpft"
+  elif [ $RC = 78 ]; then WHY="Go-Key fehlt ($GO_ENV)"
+  elif grep -qiE "usage limit|rate limit|quota|too many requests|429|insufficient (balance|credit)" <<<"$OUT"; then WHY="Kontingent erschöpft"
   elif grep -qi "session not found" <<<"$OUT"; then WHY="Session not found (opencode-Zustand kaputt)"
   else WHY="rc=$RC $(tr '\n|' '  ' <<<"$OUT" | tail -c 120)"; fi
   add "$m" FAIL "$WHY"
