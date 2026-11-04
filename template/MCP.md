@@ -7,7 +7,7 @@ Ablauf beim Ausfüllen:
 1. CLI-Befehle auf Tools abbilden; schreibende Tools bekommen `confirm`.
 2. Meta, Routen und Aufrufe als Blöcke eintragen, die `mcp_check.py` parst.
 3. Geschäftsmodell notieren.
-4. `python harness/mcp_check.py <repo>` laufen lassen; erst bei grünem Gate veröffentlichen.
+4. `python tests/harness/mcp_check.py <repo>` laufen lassen; erst bei grünem Gate veröffentlichen.
 
 ## Meta
 
